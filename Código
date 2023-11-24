@@ -1,0 +1,119 @@
+/*
+    16 Feb 2023 by Cyberon Corporation.
+    https://www.cyberon.com.tw/index.php?lang=en
+*/
+#include <Arduino.h>
+#include <DSpotterSDK_MakerHL.h> // Reconcimiento de voz Cyberon
+#include <LED_Control.h> // Prende las luces led del arduino
+#include <PluggableUSBHID.h> // Utiliza puertos usb teclado/mouse
+#include <USBMouse.h> // Da ordenes al mouse (posición, clicks, scroll, etc)
+
+USBMouse Mouse; // Variable para compatibilidad del mouse con la placa Nano 33 BLE
+
+// The DSpotter License Data.
+#include "CybLicense_1700613265.h"
+#define DSPOTTER_LICENSE g_lpdwLicense
+
+// The DSpotter Keyword Model Data.
+#if defined(TARGET_ARDUINO_NANO33BLE) || defined(TARGET_PORTENTA_H7) || defined(TARGET_NICLA_VISION)
+// For ARDUINO_NANO33BLE and PORTENTA_H7
+#include "Model_1700613265.h"             // The packed level one model file.
+// For NANO_RP2040_CONNECT
+#elif defined(TARGET_NANO_RP2040_CONNECT)
+#include "Model_1700613265.h"             // The packed level zero model file.
+#endif
+#define DSPOTTER_MODEL g_lpdwModel
+
+// The VR engine object. Only can exist one, otherwise not worked.
+static DSpotterSDKHL g_oDSpotterSDKHL;
+
+// Callback function for VR engine
+void VRCallback(int nFlag, int nID, int nScore, int nSG, int nEnergy)
+{
+  if (nFlag==DSpotterSDKHL::InitSuccess)
+  {
+      //ToDo
+  }
+  else if (nFlag==DSpotterSDKHL::GetResult)
+  {
+    if (nID == 10000)  // Si escucha el comando "derecha"
+      Mouse.move(100,0); // Mueve 100 pixeles a la derecha
+
+      if (nID == 10001)  // Si escucha el comando "izquierda"
+      Mouse.move(-100,0); // Mueve 100 pixeles a la izquierda
+
+      if (nID == 10002)  // Si escucha el comando "arriba"
+      Mouse.move(0,-50); // Mueve 50 pixeles hacia arriba
+
+      if (nID == 10003)  // Si escucha el comando "abajo"
+      Mouse.move(0,50); // Mueve 50 pixeles hacia abajo
+
+      if (nID == 10004)  // Si escucha el comando "detente"
+      Mouse.click(MOUSE_LEFT); // Presiona el click izquierda
+      /*
+      /*
+      When getting an recognition result,
+      the following index and scores are also return to the VRCallback function:
+          nID        The result command id
+          nScore     nScore is used to evaluate how good or bad the result is.
+                     The higher the score, the more similar the voice and the result command are.
+          nSG        nSG is the gap between the voice and non-command (Silence/Garbage) models.
+                     The higher the score, the less similar the voice and non-command (Silence/Garbage) models are.
+          nEnergy    nEnergy is the voice energy level.
+                     The higher the score, the louder the voice.
+      */
+      //ToDo
+  }
+  else if (nFlag==DSpotterSDKHL::ChangeStage)
+  {
+      switch(nID)
+      {
+          case DSpotterSDKHL::TriggerStage:
+            LED_RGB_Off();
+            LED_BUILTIN_Off();
+            break;
+          case DSpotterSDKHL::CommandStage:
+            LED_BUILTIN_On();
+            break;
+          default:
+            break;
+      }
+  }
+  else if (nFlag==DSpotterSDKHL::GetError)
+  {
+      if (nID == DSpotterSDKHL::LicenseFailed)
+      {
+          //Serial.print("DSpotter license failed! The serial number of your device is ");
+          //Serial.println(DSpotterSDKHL::GetSerialNumber());
+      }
+      g_oDSpotterSDKHL.Release();
+      while(1);//hang loop
+  }
+  else if (nFlag == DSpotterSDKHL::LostRecordFrame)
+  {
+      //ToDo
+  }
+}
+
+void setup()
+{
+  
+  // Init LED control
+  LED_Init_All();
+
+  // Init Serial output for show debug info
+  Serial.begin(9600);
+  while(!Serial);
+  DSpotterSDKHL::ShowDebugInfo(true);
+
+  // Init VR engine & Audio
+  if (g_oDSpotterSDKHL.Init(DSPOTTER_LICENSE, sizeof(DSPOTTER_LICENSE), DSPOTTER_MODEL, VRCallback) != DSpotterSDKHL::Success)
+    return;
+}
+
+void loop()
+{
+  // Do VR
+  g_oDSpotterSDKHL.DoVR();
+}
+
